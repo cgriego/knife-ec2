@@ -147,6 +147,11 @@ class Chef
         :proc => Proc.new { |m| Chef::Config[:knife][:aws_user_data] = m },
         :default => nil
 
+      option :use_sudo,
+        :long => "--sudo",
+        :description => "Execute the bootstrap via sudo",
+        :boolean => true
+
       def tcp_test_ssh(hostname)
         tcp_socket = TCPSocket.new(hostname, 22)
         readable = IO.select([tcp_socket], nil, nil, 5)
@@ -264,7 +269,7 @@ class Chef
         bootstrap.config[:prerelease] = config[:prerelease]
         bootstrap.config[:bootstrap_version] = locate_config_value(:bootstrap_version)
         bootstrap.config[:distro] = locate_config_value(:distro)
-        bootstrap.config[:use_sudo] = true unless config[:ssh_user] == 'root'
+        bootstrap.config[:use_sudo] = config.fetch(:use_sudo, (config[:ssh_user] != 'root'))
         bootstrap.config[:template_file] = locate_config_value(:template_file)
         bootstrap.config[:environment] = config[:environment]
         # may be needed for vpc_mode

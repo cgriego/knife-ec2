@@ -131,6 +131,20 @@ describe Chef::Knife::Ec2ServerCreate do
       @bootstrap.config[:use_sudo].should be_true
     end
 
+    it "configured the bootstrap to not use sudo if the user is root" do
+      @knife_ec2_create.config[:ssh_user] = "root"
+
+      bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server, @new_ec2_fqdn)
+      bootstrap.config[:use_sudo].should be_false
+    end
+
+    it "configures the bootstrap to not use sudo if passing --no-sudo" do
+      @knife_ec2_create.config[:use_sudo] = false
+
+      bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server, @new_ec2_fqdn)
+      bootstrap.config[:use_sudo].should be_false
+    end
+
     it "configured the bootstrap to use the desired template" do
       @bootstrap.config[:template_file].should == '~/.chef/templates/my-bootstrap.sh.erb'
     end
