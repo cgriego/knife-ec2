@@ -17,17 +17,21 @@
 #
 
 require File.expand_path('../../spec_helper', __FILE__)
+Chef::Knife::Ec2ServerCreate.load_deps
 
 describe Chef::Knife::Ec2ServerCreate do
   before do
     @knife_ec2_create = Chef::Knife::Ec2ServerCreate.new()
-    @knife_ec2_create.name_args = ['role[base]']
+    @knife_ec2_create.config[:run_list] = ['role[base]']
     @knife_ec2_create.initial_sleep_delay = 0
     @knife_ec2_create.stub!(:tcp_test_ssh).and_return(true)
 
     @ec2_connection = mock()
     @ec2_servers = mock()
+    @ec2_images = mock()
+    @ec2_image = mock()
     @new_ec2_server = mock()
+    @new_ec2_fqdn = mock()
 
     @ec2_server_attribs = { :id => 'i-39382318',
                            :flavor_id => 'm1.small',
@@ -37,8 +41,10 @@ describe Chef::Knife::Ec2ServerCreate do
                            :groups => ['group1', 'group2'],
                            :dns_name => 'ec2-75.101.253.10.compute-1.amazonaws.com',
                            :ip_address => '75.101.253.10',
+                           :public_ip_address => '75.101.253.10',
                            :private_dns_name => 'ip-10-251-75-20.ec2.internal',
-                           :private_ip_address => '10.251.75.20' }
+                           :private_ip_address => '10.251.75.20',
+                           :root_device_type => 'instance-store' }
 
     @ec2_server_attribs.each_pair do |attrib, value|
       @new_ec2_server.stub!(attrib).and_return(value)
@@ -50,14 +56,17 @@ describe Chef::Knife::Ec2ServerCreate do
     it "creates an EC2 instance and bootstraps it" do
       @new_ec2_server.should_receive(:wait_for).and_return(true)
       @ec2_servers.should_receive(:create).and_return(@new_ec2_server)
+      @ec2_image.stub!(:root_device_type).and_return("instance-store")
+      @ec2_images.should_receive(:get).and_return(@ec2_image)
       @ec2_connection.should_receive(:servers).and_return(@ec2_servers)
+      @ec2_connection.should_receive(:images).and_return(@ec2_images)
 
       Fog::AWS::Compute.should_receive(:new).and_return(@ec2_connection)
 
       @knife_ec2_create.stub!(:puts)
       @knife_ec2_create.stub!(:print)
       @knife_ec2_create.config[:image] = '12345'
-
+      @knife_ec2_create.stub!(:validate!)
 
       @bootstrap = Chef::Knife::Bootstrap.new
       Chef::Knife::Bootstrap.stub!(:new).and_return(@bootstrap)
@@ -75,11 +84,11 @@ describe Chef::Knife::Ec2ServerCreate do
       @knife_ec2_create.config[:template_file] = '~/.chef/templates/my-bootstrap.sh.erb'
       @knife_ec2_create.config[:distro] = 'ubuntu-10.04-magic-sparkles'
 
-      @bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server)
+      @bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server, @new_ec2_fqdn)
     end
 
-    it "should set the bootstrap 'name argument' to the hostname of the EC2 server" do
-      @bootstrap.name_args.should == ['ec2-75.101.253.10.compute-1.amazonaws.com']
+    it "should set the bootstrap 'name argument' to the fqdn of the EC2 server" do
+      @bootstrap.name_args.should == [@new_ec2_fqdn]
     end
 
     it "configures sets the bootstrap's run_list" do
@@ -101,7 +110,7 @@ describe Chef::Knife::Ec2ServerCreate do
     it "configures the bootstrap to use the EC2 server id if no explicit node name is set" do
       @knife_ec2_create.config[:chef_node_name] = nil
 
-      bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server)
+      bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server, @new_ec2_fqdn)
       bootstrap.config[:chef_node_name].should == @new_ec2_server.id
     end
 
@@ -110,7 +119,7 @@ describe Chef::Knife::Ec2ServerCreate do
 
       @knife_ec2_create.config[:prerelease] = true
 
-      bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server)
+      bootstrap = @knife_ec2_create.bootstrap_for_node(@new_ec2_server, @new_ec2_fqdn)
       bootstrap.config[:prerelease].should be_true
     end
 
