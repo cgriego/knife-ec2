@@ -148,7 +148,7 @@ class Chef
         :default => nil
 
       option :use_sudo,
-        :long => "--sudo",
+        :long => "--[no-]sudo",
         :description => "Execute the bootstrap via sudo",
         :boolean => true
 
